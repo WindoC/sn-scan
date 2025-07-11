@@ -124,13 +124,14 @@ export default function Home() {
       photos.forEach(({ sn, dataUrl }, index) => {
         const base64 = dataUrl.split(',')[1];
         const extension = dataUrl.includes('image/png') ? 'png' : 'jpg';
-        zip.file(`${sn}/${sn}_${index + 1}.${extension}`, base64, { base64: true });
+        // zip.file(`${sn}/${sn}_${index + 1}.${extension}`, base64, { base64: true });
+        zip.file(`${sn}.${extension}`, base64, { base64: true });
       });
       
       const blob = await zip.generateAsync({ type: 'blob' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `sn_photos_${new Date().toISOString().split('T')[0]}.zip`;
+      a.download = `sn_photos_${new Date().toISOString()}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
