@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import JSZip from 'jszip';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import ThemeToggle from './components/ThemeToggle';
+import { getAllPhotos, addPhoto, deletePhoto, clearAllPhotos } from './utils/photoStorage';
 
 const STORAGE_KEY = 'sn_photos';
 const TAB_STORAGE_KEY = 'active_tab'; // Key for storing active tab preference
@@ -170,15 +171,17 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
   const [photos, setPhotos] = useState([]);
 
   useEffect(() => {
-    // 載入已儲存的照片
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    // 載入已儲存的照片 (使用 IndexedDB)
+    const loadPhotos = async () => {
       try {
-        setPhotos(JSON.parse(saved));
+        const savedPhotos = await getAllPhotos();
+        setPhotos(savedPhotos);
       } catch (error) {
         console.error('載入儲存資料時發生錯誤:', error);
       }
-    }
+    };
+    
+    loadPhotos();
   }, []);
 
   const handleCapture = (e) => {
@@ -193,21 +196,31 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      const newPhoto = { 
-        sn: sn.trim(), 
-        dataUrl: reader.result,
-        timestamp: new Date().toISOString()
-      };
-      const updated = [...photos, newPhoto];
-      setPhotos(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      
-      // 清空 SN 輸入框，準備下一次掃描
-      setSn('');
-      
-      // 重置檔案輸入
-      e.target.value = '';
+    reader.onload = async () => {
+      try {
+        const newPhoto = {
+          sn: sn.trim(),
+          dataUrl: reader.result,
+          timestamp: new Date().toISOString()
+        };
+        
+        // 使用 IndexedDB 儲存照片
+        const photoId = await addPhoto(newPhoto);
+        
+        // 更新本地狀態 (加入 ID)
+        const photoWithId = { ...newPhoto, id: photoId };
+        const updated = [...photos, photoWithId];
+        setPhotos(updated);
+        
+        // 清空 SN 輸入框，準備下一次掃描
+        setSn('');
+        
+        // 重置檔案輸入
+        e.target.value = '';
+      } catch (error) {
+        console.error('儲存照片時發生錯誤:', error);
+        alert('儲存照片失敗，請稍後再試');
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -242,20 +255,33 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
     }
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     if (photos.length === 0) return;
     
     if (confirm('確定要清除所有照片嗎？此操作無法復原。')) {
-      setPhotos([]);
-      localStorage.removeItem(STORAGE_KEY);
+      try {
+        await clearAllPhotos();
+        setPhotos([]);
+      } catch (error) {
+        console.error('清除照片時發生錯誤:', error);
+        alert('清除照片失敗，請稍後再試');
+      }
     }
   };
 
-  const deletePhoto = (index) => {
+  const deletePhotoById = async (index) => {
     if (confirm('確定要刪除這張照片嗎？')) {
-      const updated = photos.filter((_, i) => i !== index);
-      setPhotos(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      try {
+        const photoToDelete = photos[index];
+        await deletePhoto(photoToDelete.id);
+        
+        // 更新本地狀態
+        const updated = photos.filter((_, i) => i !== index);
+        setPhotos(updated);
+      } catch (error) {
+        console.error('刪除照片時發生錯誤:', error);
+        alert('刪除照片失敗，請稍後再試');
+      }
     }
   };
 
@@ -289,8 +315,8 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
               <img src={photo.dataUrl} alt={photo.sn} />
               <div className="photo-info">
                 <div className="sn-label">{photo.sn}</div>
-                <button 
-                  onClick={() => deletePhoto(index)}
+                <button
+                  onClick={() => deletePhotoById(index)}
                   className="delete-btn"
                 >
                   🗑️
