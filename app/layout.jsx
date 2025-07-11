@@ -22,14 +22,14 @@ export const metadata = {
   },
   formatDetection: {
     telephone: false
-  },
-  themeColor: '#4F46E5',
-  colorScheme: 'light'
+  }
 }
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
+  themeColor: '#4F46E5',
+  colorScheme: 'light'
 }
 
 export default function RootLayout({ children }) {
