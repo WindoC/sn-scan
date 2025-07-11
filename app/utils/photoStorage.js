@@ -1,11 +1,72 @@
 /**
  * IndexedDB utility for photo storage operations
  * Replaces localStorage for STORAGE_KEY to support large files
+ * Includes thumbnail generation for memory optimization
  */
 
 const DB_NAME = 'sn-photo-collector';
 const DB_VERSION = 1;
 const STORE_NAME = 'photos';
+
+// Thumbnail configuration
+const THUMBNAIL_MAX_WIDTH = 150;
+const THUMBNAIL_MAX_HEIGHT = 150;
+const THUMBNAIL_QUALITY = 0.8;
+
+/**
+ * Generate a thumbnail from a full-size image data URL
+ * @param {string} dataUrl - Full-size image data URL
+ * @returns {Promise<string>} Thumbnail data URL
+ */
+function generateThumbnail(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate thumbnail dimensions while maintaining aspect ratio
+        let { width, height } = img;
+        const aspectRatio = width / height;
+        
+        if (width > height) {
+          if (width > THUMBNAIL_MAX_WIDTH) {
+            width = THUMBNAIL_MAX_WIDTH;
+            height = width / aspectRatio;
+          }
+        } else {
+          if (height > THUMBNAIL_MAX_HEIGHT) {
+            height = THUMBNAIL_MAX_HEIGHT;
+            width = height * aspectRatio;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress the image
+        ctx.drawImage(img, 0, 0, width, height);
+        const thumbnailDataUrl = canvas.toDataURL('image/jpeg', THUMBNAIL_QUALITY);
+        
+        console.log(`🖼️ Thumbnail generated: ${Math.round(width)}x${Math.round(height)}`);
+        resolve(thumbnailDataUrl);
+      } catch (error) {
+        console.error('❌ Error generating thumbnail:', error);
+        reject(error);
+      }
+    };
+    
+    img.onerror = () => {
+      const error = new Error('Failed to load image for thumbnail generation');
+      console.error('❌ Image load error:', error);
+      reject(error);
+    };
+    
+    img.src = dataUrl;
+  });
+}
 
 /**
  * Initialize IndexedDB database
@@ -77,22 +138,81 @@ export async function getAllPhotos() {
 }
 
 /**
- * Add a new photo to IndexedDB
+ * Get photo thumbnails only for display (memory optimized)
+ * @returns {Promise<Array>} Array of photo objects with thumbnails only
+ */
+export async function getPhotoThumbnails() {
+  try {
+    const photos = await getAllPhotos();
+    
+    // Return only thumbnail data to minimize memory usage
+    const thumbnails = photos.map(photo => ({
+      id: photo.id,
+      sn: photo.sn,
+      timestamp: photo.timestamp,
+      dataUrl: photo.thumbnailDataUrl || photo.dataUrl, // Fallback for old data
+    }));
+    
+    console.log(`🖼️ IndexedDB: Retrieved ${thumbnails.length} photo thumbnails`);
+    return thumbnails;
+  } catch (error) {
+    console.error('❌ IndexedDB: Error in getPhotoThumbnails', error);
+    throw error;
+  }
+}
+
+/**
+ * Get full-size photos for ZIP download
+ * @returns {Promise<Array>} Array of photo objects with full-size images
+ */
+export async function getFullSizePhotos() {
+  try {
+    const photos = await getAllPhotos();
+    
+    // Return full-size data for ZIP creation
+    const fullSizePhotos = photos.map(photo => ({
+      id: photo.id,
+      sn: photo.sn,
+      timestamp: photo.timestamp,
+      dataUrl: photo.fullSizeDataUrl || photo.dataUrl, // Fallback for old data
+    }));
+    
+    console.log(`📦 IndexedDB: Retrieved ${fullSizePhotos.length} full-size photos for ZIP`);
+    return fullSizePhotos;
+  } catch (error) {
+    console.error('❌ IndexedDB: Error in getFullSizePhotos', error);
+    throw error;
+  }
+}
+
+/**
+ * Add a new photo to IndexedDB with thumbnail generation
  * @param {Object} photo - Photo object with sn, dataUrl, and timestamp
  * @returns {Promise<number>} The ID of the added photo
  */
 export async function addPhoto(photo) {
   try {
+    // Generate thumbnail for memory optimization
+    const thumbnailDataUrl = await generateThumbnail(photo.dataUrl);
+    
+    // Create photo object with both full-size and thumbnail
+    const photoWithThumbnail = {
+      ...photo,
+      thumbnailDataUrl,
+      // Keep original dataUrl for ZIP download
+      fullSizeDataUrl: photo.dataUrl
+    };
+    
     const db = await initDB();
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     
     return new Promise((resolve, reject) => {
-      const request = store.add(photo);
+      const request = store.add(photoWithThumbnail);
       
       request.onsuccess = () => {
         const photoId = request.result;
-        console.log(`✅ IndexedDB: Photo added with ID ${photoId} for SN: ${photo.sn}`);
+        console.log(`✅ IndexedDB: Photo added with ID ${photoId} for SN: ${photo.sn} (with thumbnail)`);
         resolve(photoId);
       };
       

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import JSZip from 'jszip';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import ThemeToggle from './components/ThemeToggle';
-import { getAllPhotos, addPhoto, deletePhoto, clearAllPhotos } from './utils/photoStorage';
+import { getPhotoThumbnails, getFullSizePhotos, addPhoto, deletePhoto, clearAllPhotos } from './utils/photoStorage';
 
 const STORAGE_KEY = 'sn_photos';
 const TAB_STORAGE_KEY = 'active_tab'; // Key for storing active tab preference
@@ -171,11 +171,11 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
   const [photos, setPhotos] = useState([]);
 
   useEffect(() => {
-    // 載入已儲存的照片 (使用 IndexedDB)
+    // 載入已儲存的照片縮圖 (記憶體優化)
     const loadPhotos = async () => {
       try {
-        const savedPhotos = await getAllPhotos();
-        setPhotos(savedPhotos);
+        const photoThumbnails = await getPhotoThumbnails();
+        setPhotos(photoThumbnails);
       } catch (error) {
         console.error('載入儲存資料時發生錯誤:', error);
       }
@@ -204,13 +204,12 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
           timestamp: new Date().toISOString()
         };
         
-        // 使用 IndexedDB 儲存照片
+        // 使用 IndexedDB 儲存照片 (包含縮圖生成)
         const photoId = await addPhoto(newPhoto);
         
-        // 更新本地狀態 (加入 ID)
-        const photoWithId = { ...newPhoto, id: photoId };
-        const updated = [...photos, photoWithId];
-        setPhotos(updated);
+        // 重新載入縮圖以更新顯示 (記憶體優化)
+        const photoThumbnails = await getPhotoThumbnails();
+        setPhotos(photoThumbnails);
         
         // 清空 SN 輸入框，準備下一次掃描
         setSn('');
@@ -232,9 +231,17 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
     }
 
     try {
+      // 取得完整尺寸照片用於 ZIP 下載
+      const fullSizePhotos = await getFullSizePhotos();
+      
+      if (fullSizePhotos.length === 0) {
+        alert("沒有照片可以下載");
+        return;
+      }
+
       const zip = new JSZip();
       
-      photos.forEach(({ sn, dataUrl }, index) => {
+      fullSizePhotos.forEach(({ sn, dataUrl }, index) => {
         const base64 = dataUrl.split(',')[1];
         const extension = dataUrl.includes('image/png') ? 'png' : 'jpg';
         // zip.file(`${sn}.${extension}`, base64, { base64: true });
@@ -249,6 +256,8 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
+      
+      console.log(`📦 ZIP 下載完成: ${fullSizePhotos.length} 張完整尺寸照片`);
     } catch (error) {
       console.error('建立 ZIP 檔案時發生錯誤:', error);
       alert('下載失敗，請稍後再試');
@@ -275,9 +284,9 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
         const photoToDelete = photos[index];
         await deletePhoto(photoToDelete.id);
         
-        // 更新本地狀態
-        const updated = photos.filter((_, i) => i !== index);
-        setPhotos(updated);
+        // 重新載入縮圖以更新顯示 (記憶體優化)
+        const photoThumbnails = await getPhotoThumbnails();
+        setPhotos(photoThumbnails);
       } catch (error) {
         console.error('刪除照片時發生錯誤:', error);
         alert('刪除照片失敗，請稍後再試');
