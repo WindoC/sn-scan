@@ -23,39 +23,137 @@ export default function Home() {
     }
   }, []);
 
-  const startScanner = () => {
+  const startScanner = async () => {
     if (scannerActive) return;
     
-    setScannerActive(true);
-    const scanner = new Html5QrcodeScanner(
-      "reader", 
-      { 
-        fps: 10, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
-      },
-      false
-    );
+    console.log('🔍 開始初始化掃描器...');
     
-    scanner.render(
-      (decodedText) => {
-        setSn(decodedText);
-        scanner.clear();
-        setScannerActive(false);
-      },
-      (error) => {
-        // 忽略掃描錯誤，這很正常
+    // 檢查瀏覽器支援
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('❌ 瀏覽器不支援相機功能');
+      alert('您的瀏覽器不支援相機功能，請使用現代瀏覽器如 Chrome、Firefox 或 Safari');
+      return;
+    }
+
+    // 檢查是否為 HTTPS 或 localhost
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (!isSecure) {
+      console.error('❌ 需要 HTTPS 連線才能使用相機');
+      alert('相機功能需要安全連線 (HTTPS)。請使用 HTTPS 或在 localhost 上運行。');
+      return;
+    }
+
+    // 檢查相機權限 - 使用 timeout 避免無限等待
+    try {
+      console.log('🔐 檢查相機權限...');
+      
+      // 設定 10 秒超時
+      const permissionPromise = navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment' // 優先使用後置相機
+        }
+      });
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('相機權限請求超時')), 10000);
+      });
+      
+      const stream = await Promise.race([permissionPromise, timeoutPromise]);
+      stream.getTracks().forEach(track => track.stop()); // 立即停止測試串流
+      console.log('✅ 相機權限已獲得');
+      
+    } catch (permissionError) {
+      console.error('❌ 相機權限問題:', permissionError);
+      
+      let errorMessage = '無法存取相機。';
+      if (permissionError.name === 'NotAllowedError') {
+        errorMessage += '\n\n請按照以下步驟允許相機權限：\n1. 點擊瀏覽器網址列左側的鎖頭圖示\n2. 將相機權限設為「允許」\n3. 重新整理頁面並再次嘗試';
+      } else if (permissionError.name === 'NotFoundError') {
+        errorMessage += '\n\n找不到相機設備，請確認：\n1. 電腦有連接相機\n2. 相機沒有被其他應用程式使用\n3. 嘗試重新啟動瀏覽器';
+      } else if (permissionError.message.includes('超時')) {
+        errorMessage += '\n\n相機權限請求超時，請：\n1. 檢查是否有權限對話框被阻擋\n2. 重新整理頁面\n3. 手動在瀏覽器設定中允許相機權限';
+      } else {
+        errorMessage += `\n\n錯誤詳情: ${permissionError.message}`;
       }
-    );
+      
+      alert(errorMessage);
+      return;
+    }
+
+    // 檢查 DOM 元素
+    const readerElement = document.getElementById('reader');
+    if (!readerElement) {
+      console.error('❌ 找不到掃描器容器元素');
+      alert('掃描器初始化失敗：找不到容器元素');
+      return;
+    }
+
+    console.log('✅ 所有檢查通過，開始初始化掃描器');
+    setScannerActive(true);
+    
+    try {
+      const scanner = new Html5QrcodeScanner(
+        "reader",
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          rememberLastUsedCamera: true,
+          showTorchButtonIfSupported: true,
+          supportedScanTypes: [Html5QrcodeScanner.SCAN_TYPE_CAMERA]
+        },
+        false
+      );
+      
+      console.log('📷 掃描器已創建，開始渲染...');
+      
+      scanner.render(
+        (decodedText) => {
+          console.log('✅ 掃描成功:', decodedText);
+          setSn(decodedText);
+          scanner.clear().then(() => {
+            console.log('🧹 掃描器已清理');
+            setScannerActive(false);
+          }).catch((clearError) => {
+            console.error('⚠️ 清理掃描器時發生錯誤:', clearError);
+            setScannerActive(false);
+          });
+        },
+        (error) => {
+          // 只記錄非常見的掃描錯誤
+          if (!error.includes('NotFoundException') && !error.includes('No MultiFormat Readers')) {
+            console.warn('⚠️ 掃描錯誤:', error);
+          }
+        }
+      );
+      
+      console.log('🎯 掃描器渲染完成，等待掃描...');
+      
+    } catch (scannerError) {
+      console.error('❌ 掃描器初始化失敗:', scannerError);
+      setScannerActive(false);
+      alert(`掃描器啟動失敗: ${scannerError.message}\n\n請嘗試：\n1. 重新整理頁面\n2. 檢查相機權限\n3. 使用其他瀏覽器`);
+    }
   };
 
   const stopScanner = () => {
-    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-    scanner.clear().then(() => {
+    console.log('🛑 停止掃描器...');
+    
+    try {
+      // 嘗試清理現有的掃描器實例
+      const readerElement = document.getElementById('reader');
+      if (readerElement) {
+        // 清空容器內容
+        readerElement.innerHTML = '';
+        console.log('🧹 掃描器容器已清空');
+      }
+      
       setScannerActive(false);
-    }).catch(() => {
+      console.log('✅ 掃描器已停止');
+    } catch (error) {
+      console.error('⚠️ 停止掃描器時發生錯誤:', error);
       setScannerActive(false);
-    });
+    }
   };
 
   const handleCapture = (e) => {
@@ -152,13 +250,20 @@ export default function Home() {
             placeholder="輸入或掃描 SN 序號" 
             className="sn-input"
           />
-          <button 
+          <button
             onClick={scannerActive ? stopScanner : startScanner}
             className={`scan-btn ${scannerActive ? 'active' : ''}`}
+            disabled={scannerActive}
           >
-            {scannerActive ? '停止掃描' : '開始掃描'}
+            {scannerActive ? '🔄 掃描中...' : '📷 開始掃描'}
           </button>
         </div>
+        {scannerActive && (
+          <div className="scanner-status">
+            <p>📱 相機正在啟動中，請允許瀏覽器存取相機權限...</p>
+            <p>💡 提示：如果沒有看到權限對話框，請檢查瀏覽器網址列是否有相機圖示</p>
+          </div>
+        )}
         <div id="reader" className="scanner-container"></div>
       </section>
 
