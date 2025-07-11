@@ -440,3 +440,45 @@ section h2 {
 #reader__scan_region {
   border-radius: 8px !important;
 }
+
+/* Dark theme specific button overrides */
+[data-theme="dark"] .scan-btn {
+  background-color: #1e40af;
+}
+
+[data-theme="dark"] .scan-btn:hover {
+  background-color: #1d4ed8;
+}
+
+[data-theme="dark"] .scan-btn.active {
+  background-color: #b91c1c;
+}
+
+[data-theme="dark"] .scan-btn.active:hover {
+  background-color: #991b1b;
+}
+
+[data-theme="dark"] .download-btn {
+  background-color: #15803d;
+}
+
+[data-theme="dark"] .download-btn:hover:not(:disabled) {
+  background-color: #166534;
+}
+
+[data-theme="dark"] .clear-btn {
+  background-color: #b91c1c;
+}
+
+[data-theme="dark"] .clear-btn:hover:not(:disabled) {
+  background-color: #991b1b;
+}
+
+[data-theme="dark"] .theme-toggle {
+  background: #404040;
+  border-color: #555555;
+}
+
+[data-theme="dark"] .theme-toggle:hover:not(:disabled) {
+  background: #4a4a4a;
+}
