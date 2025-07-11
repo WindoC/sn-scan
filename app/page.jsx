@@ -224,7 +224,8 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
       photos.forEach(({ sn, dataUrl }, index) => {
         const base64 = dataUrl.split(',')[1];
         const extension = dataUrl.includes('image/png') ? 'png' : 'jpg';
-        zip.file(`${sn}.${extension}`, base64, { base64: true });
+        // zip.file(`${sn}.${extension}`, base64, { base64: true });
+        zip.file(`${sn}/${sn}_${index + 1}.${extension}`, base64, { base64: true });
       });
       
       const blob = await zip.generateAsync({ type: 'blob' });
