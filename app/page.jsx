@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import JSZip from 'jszip';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import ThemeToggle from './components/ThemeToggle';
 
 const STORAGE_KEY = 'sn_photos';
 const TAB_STORAGE_KEY = 'active_tab'; // Key for storing active tab preference
@@ -365,6 +366,7 @@ export default function Home() {
         <header>
           <h1>📷 SN 照片收集器</h1>
           <p>掃描條碼並拍攝相關照片</p>
+          <ThemeToggle />
         </header>
         <nav className="tab-navigation">
           <button className="tab-btn active">立即下載</button>
@@ -384,6 +386,7 @@ export default function Home() {
       <header>
         <h1>📷 SN 照片收集器</h1>
         <p>掃描條碼並拍攝相關照片</p>
+        <ThemeToggle />
       </header>
 
       {/* Tab Navigation */}

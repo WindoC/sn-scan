@@ -1,4 +1,5 @@
 import './globals.css'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 export const metadata = {
   title: 'SN Photo Collector',
@@ -29,13 +30,20 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: '#4F46E5',
-  colorScheme: 'light'
+  colorScheme: 'light dark'
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-TW">
-      <body>{children}</body>
+      <head>
+        <meta name="theme-color" content="#4F46E5" />
+      </head>
+      <body>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }
