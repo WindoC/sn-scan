@@ -325,12 +325,14 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
 // - 組合下載 (Batch Download): Photos are stored and can be downloaded as ZIP
 // - Tab preference is persisted in localStorage across browser sessions
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('immediate'); // 'immediate' or 'batch'
+  const [activeTab, setActiveTab] = useState('immediate'); // Always start with default
+  const [isHydrated, setIsHydrated] = useState(false); // Track hydration status
   const [sn, setSn] = useState('');
   const [scannerActive, setScannerActive] = useState(false);
 
-  // Load saved tab preference on component mount
+  // Handle hydration and load saved tab preference
   useEffect(() => {
+    setIsHydrated(true); // Mark as hydrated
     const savedTab = localStorage.getItem(TAB_STORAGE_KEY);
     if (savedTab && (savedTab === 'immediate' || savedTab === 'batch')) {
       setActiveTab(savedTab);
@@ -355,6 +357,27 @@ export default function Home() {
       console.warn('⚠️ 掃描錯誤:', error);
     }
   };
+
+  // Show loading state during hydration to prevent flash
+  if (!isHydrated) {
+    return (
+      <div className="container">
+        <header>
+          <h1>📷 SN 照片收集器</h1>
+          <p>掃描條碼並拍攝相關照片</p>
+        </header>
+        <nav className="tab-navigation">
+          <button className="tab-btn active">立即下載</button>
+          <button className="tab-btn">組合下載</button>
+        </nav>
+        <div className="mode-content">
+          <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+            載入中...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container">
@@ -381,7 +404,7 @@ export default function Home() {
 
       {/* Mode Content */}
       {activeTab === 'immediate' ? (
-        <ImmediateDownloadMode 
+        <ImmediateDownloadMode
           sn={sn}
           setSn={setSn}
           scannerActive={scannerActive}
@@ -390,7 +413,7 @@ export default function Home() {
           onScanError={onScanError}
         />
       ) : (
-        <BatchDownloadMode 
+        <BatchDownloadMode
           sn={sn}
           setSn={setSn}
           scannerActive={scannerActive}
