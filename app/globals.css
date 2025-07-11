@@ -42,6 +42,61 @@ header p {
   font-size: 1.1rem;
 }
 
+/* Tab Navigation Styles */
+.tab-navigation {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+  background-color: white;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.3s ease;
+  border-bottom: 3px solid transparent;
+  position: relative;
+}
+
+.tab-btn:hover {
+  background-color: #e9ecef;
+  color: #333;
+}
+
+.tab-btn.active {
+  background-color: white;
+  color: #007bff;
+  border-bottom-color: #007bff;
+  font-weight: 600;
+}
+
+.tab-btn:first-child {
+  border-right: 1px solid #e0e0e0;
+}
+
+/* Mode Content Wrapper */
+.mode-content {
+  background-color: white;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.mode-content section:first-child {
+  border-radius: 0;
+  border-top: none;
+  margin-top: 0;
+}
+
 section {
   margin-bottom: 30px;
   padding: 20px;
@@ -251,6 +306,16 @@ section h2 {
   .download-btn,
   .clear-btn {
     width: 100%;
+  }
+  
+  /* Tab Navigation Mobile Styles */
+  .tab-btn {
+    padding: 12px 15px;
+    font-size: 14px;
+  }
+  
+  .tab-navigation {
+    margin-bottom: 15px;
   }
 }
 

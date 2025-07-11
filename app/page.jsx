@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const STORAGE_KEY = 'sn_photos';
+const TAB_STORAGE_KEY = 'active_tab'; // Key for storing active tab preference
 
 // Html5QrcodePlugin component for proper React integration
 const Html5QrcodePlugin = ({ fps, qrbox, aspectRatio, disableFlip, qrCodeSuccessCallback, qrCodeErrorCallback, verbose }) => {
@@ -41,10 +42,131 @@ const Html5QrcodePlugin = ({ fps, qrbox, aspectRatio, disableFlip, qrCodeSuccess
   return <div id={qrcodeRegionId} />;
 };
 
-export default function Home() {
-  const [sn, setSn] = useState('');
+// Shared Scanner Section Component
+const ScannerSection = ({ sn, setSn, scannerActive, setScannerActive, onScanSuccess, onScanError }) => {
+  const startScanner = () => {
+    console.log('🔍 開始掃描器...');
+    setScannerActive(true);
+  };
+
+  const stopScanner = () => {
+    console.log('🛑 停止掃描器...');
+    setScannerActive(false);
+  };
+
+  return (
+    <section className="scanner-section">
+      <h2>🔍 掃描條碼</h2>
+      <div className="input-group">
+        <input 
+          type="text" 
+          value={sn} 
+          onChange={(e) => setSn(e.target.value)}
+          placeholder="輸入或掃描 SN 序號" 
+          className="sn-input"
+        />
+        <button
+          onClick={scannerActive ? stopScanner : startScanner}
+          className={`scan-btn ${scannerActive ? 'active' : ''}`}
+          disabled={scannerActive}
+        >
+          {scannerActive ? '🔄 掃描中...' : '📷 開始掃描'}
+        </button>
+      </div>
+      {scannerActive && (
+        <div className="scanner-status">
+          <p>📱 相機正在啟動中，請允許瀏覽器存取相機權限...</p>
+          <p>💡 提示：如果沒有看到權限對話框，請檢查瀏覽器網址列是否有相機圖示</p>
+        </div>
+      )}
+      <div className="scanner-container">
+        {scannerActive && (
+          <Html5QrcodePlugin
+            fps={10}
+            qrbox={250}
+            aspectRatio={1.0}
+            disableFlip={false}
+            qrCodeSuccessCallback={onScanSuccess}
+            qrCodeErrorCallback={onScanError}
+            verbose={false}
+          />
+        )}
+      </div>
+    </section>
+  );
+};
+
+// Immediate Download Mode Component
+const ImmediateDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanSuccess, onScanError }) => {
+  const downloadImage = (dataUrl, filename) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleCapture = (e) => {
+    const file = e.target.files[0];
+    if (!sn.trim()) {
+      alert("請先輸入或掃描 SN 序號");
+      return;
+    }
+    if (!file) {
+      alert("請選擇照片");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      // 確定檔案副檔名
+      const extension = file.type.includes('image/png') ? 'png' : 'jpg';
+      const filename = `${sn.trim()}.${extension}`;
+      
+      // 立即下載照片
+      downloadImage(reader.result, filename);
+      
+      console.log(`✅ 照片已下載: ${filename}`);
+      
+      // 清空 SN 輸入框，準備下一次掃描
+      setSn('');
+      
+      // 重置檔案輸入
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="mode-content">
+      <ScannerSection 
+        sn={sn}
+        setSn={setSn}
+        scannerActive={scannerActive}
+        setScannerActive={setScannerActive}
+        onScanSuccess={onScanSuccess}
+        onScanError={onScanError}
+      />
+
+      <section className="photo-section">
+        <h2>📸 拍攝照片</h2>
+        <p>選擇照片後將自動以 SN 序號命名並下載到您的裝置</p>
+        <input 
+          type="file" 
+          accept="image/*" 
+          capture="environment" 
+          onChange={handleCapture}
+          className="photo-input"
+        />
+      </section>
+    </div>
+  );
+};
+
+// Batch Download Mode Component
+const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanSuccess, onScanError }) => {
   const [photos, setPhotos] = useState([]);
-  const [scannerActive, setScannerActive] = useState(false);
 
   useEffect(() => {
     // 載入已儲存的照片
@@ -57,29 +179,6 @@ export default function Home() {
       }
     }
   }, []);
-
-  const startScanner = () => {
-    console.log('🔍 開始掃描器...');
-    setScannerActive(true);
-  };
-
-  const stopScanner = () => {
-    console.log('🛑 停止掃描器...');
-    setScannerActive(false);
-  };
-
-  const onScanSuccess = (decodedText, decodedResult) => {
-    console.log('✅ 掃描成功:', decodedText);
-    setSn(decodedText);
-    setScannerActive(false);
-  };
-
-  const onScanError = (error) => {
-    // 只記錄非常見的掃描錯誤
-    if (!error.includes('NotFoundException') && !error.includes('No MultiFormat Readers')) {
-      console.warn('⚠️ 掃描錯誤:', error);
-    }
-  };
 
   const handleCapture = (e) => {
     const file = e.target.files[0];
@@ -124,7 +223,6 @@ export default function Home() {
       photos.forEach(({ sn, dataUrl }, index) => {
         const base64 = dataUrl.split(',')[1];
         const extension = dataUrl.includes('image/png') ? 'png' : 'jpg';
-        // zip.file(`${sn}/${sn}_${index + 1}.${extension}`, base64, { base64: true });
         zip.file(`${sn}.${extension}`, base64, { base64: true });
       });
       
@@ -160,50 +258,15 @@ export default function Home() {
   };
 
   return (
-    <div className="container">
-      <header>
-        <h1>📷 SN 照片收集器</h1>
-        <p>掃描條碼並拍攝相關照片</p>
-      </header>
-
-      <section className="scanner-section">
-        <h2>🔍 掃描條碼</h2>
-        <div className="input-group">
-          <input 
-            type="text" 
-            value={sn} 
-            onChange={(e) => setSn(e.target.value)}
-            placeholder="輸入或掃描 SN 序號" 
-            className="sn-input"
-          />
-          <button
-            onClick={scannerActive ? stopScanner : startScanner}
-            className={`scan-btn ${scannerActive ? 'active' : ''}`}
-            disabled={scannerActive}
-          >
-            {scannerActive ? '🔄 掃描中...' : '📷 開始掃描'}
-          </button>
-        </div>
-        {scannerActive && (
-          <div className="scanner-status">
-            <p>📱 相機正在啟動中，請允許瀏覽器存取相機權限...</p>
-            <p>💡 提示：如果沒有看到權限對話框，請檢查瀏覽器網址列是否有相機圖示</p>
-          </div>
-        )}
-        <div className="scanner-container">
-          {scannerActive && (
-            <Html5QrcodePlugin
-              fps={10}
-              qrbox={250}
-              aspectRatio={1.0}
-              disableFlip={false}
-              qrCodeSuccessCallback={onScanSuccess}
-              qrCodeErrorCallback={onScanError}
-              verbose={false}
-            />
-          )}
-        </div>
-      </section>
+    <div className="mode-content">
+      <ScannerSection 
+        sn={sn}
+        setSn={setSn}
+        scannerActive={scannerActive}
+        setScannerActive={setScannerActive}
+        onScanSuccess={onScanSuccess}
+        onScanError={onScanError}
+      />
 
       <section className="photo-section">
         <h2>📸 拍攝照片</h2>
@@ -252,6 +315,90 @@ export default function Home() {
           🗑️ 清除全部
         </button>
       </section>
+    </div>
+  );
+};
+
+// Main App Component with Tabbed Interface
+// Features:
+// - 立即下載 (Immediate Download): Photos are downloaded immediately after capture
+// - 組合下載 (Batch Download): Photos are stored and can be downloaded as ZIP
+// - Tab preference is persisted in localStorage across browser sessions
+export default function Home() {
+  const [activeTab, setActiveTab] = useState('immediate'); // 'immediate' or 'batch'
+  const [sn, setSn] = useState('');
+  const [scannerActive, setScannerActive] = useState(false);
+
+  // Load saved tab preference on component mount
+  useEffect(() => {
+    const savedTab = localStorage.getItem(TAB_STORAGE_KEY);
+    if (savedTab && (savedTab === 'immediate' || savedTab === 'batch')) {
+      setActiveTab(savedTab);
+    }
+  }, []);
+
+  // Save tab preference when it changes
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  };
+
+  const onScanSuccess = (decodedText, decodedResult) => {
+    console.log('✅ 掃描成功:', decodedText);
+    setSn(decodedText);
+    setScannerActive(false);
+  };
+
+  const onScanError = (error) => {
+    // 只記錄非常見的掃描錯誤
+    if (!error.includes('NotFoundException') && !error.includes('No MultiFormat Readers')) {
+      console.warn('⚠️ 掃描錯誤:', error);
+    }
+  };
+
+  return (
+    <div className="container">
+      <header>
+        <h1>📷 SN 照片收集器</h1>
+        <p>掃描條碼並拍攝相關照片</p>
+      </header>
+
+      {/* Tab Navigation */}
+      <nav className="tab-navigation">
+        <button
+          className={`tab-btn ${activeTab === 'immediate' ? 'active' : ''}`}
+          onClick={() => handleTabChange('immediate')}
+        >
+          立即下載
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'batch' ? 'active' : ''}`}
+          onClick={() => handleTabChange('batch')}
+        >
+          組合下載
+        </button>
+      </nav>
+
+      {/* Mode Content */}
+      {activeTab === 'immediate' ? (
+        <ImmediateDownloadMode 
+          sn={sn}
+          setSn={setSn}
+          scannerActive={scannerActive}
+          setScannerActive={setScannerActive}
+          onScanSuccess={onScanSuccess}
+          onScanError={onScanError}
+        />
+      ) : (
+        <BatchDownloadMode 
+          sn={sn}
+          setSn={setSn}
+          scannerActive={scannerActive}
+          setScannerActive={setScannerActive}
+          onScanSuccess={onScanSuccess}
+          onScanError={onScanError}
+        />
+      )}
     </div>
   );
 }
