@@ -150,7 +150,8 @@ export async function getPhotoThumbnails() {
       id: photo.id,
       sn: photo.sn,
       timestamp: photo.timestamp,
-      dataUrl: photo.thumbnailDataUrl || photo.dataUrl, // Fallback for old data
+      // dataUrl: photo.thumbnailDataUrl || photo.dataUrl, // Fallback for old data
+      dataUrl: photo.thumbnailDataUrl,
     }));
     
     console.log(`🖼️ IndexedDB: Retrieved ${thumbnails.length} photo thumbnails`);
@@ -174,7 +175,8 @@ export async function getFullSizePhotos() {
       id: photo.id,
       sn: photo.sn,
       timestamp: photo.timestamp,
-      dataUrl: photo.fullSizeDataUrl || photo.dataUrl, // Fallback for old data
+      // dataUrl: photo.fullSizeDataUrl || photo.dataUrl, // Fallback for old data
+      dataUrl: photo.dataUrl, // Fallback for old data
     }));
     
     console.log(`📦 IndexedDB: Retrieved ${fullSizePhotos.length} full-size photos for ZIP`);
@@ -200,7 +202,7 @@ export async function addPhoto(photo) {
       ...photo,
       thumbnailDataUrl,
       // Keep original dataUrl for ZIP download
-      fullSizeDataUrl: photo.dataUrl
+      // fullSizeDataUrl: photo.dataUrl // already have dataUrl here, no need to save another fullSizeDataUrl
     };
     
     const db = await initDB();
