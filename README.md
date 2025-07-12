@@ -15,7 +15,7 @@
 - **框架**: Next.js 14
 - **條碼掃描**: html5-qrcode
 - **檔案處理**: jszip
-- **資料持久化**: localStorage
+- **資料持久化**: IndexedDB (照片儲存) + localStorage (設定儲存)
 - **部署**: Vercel
 
 ## 🏃‍♂️ 快速開始
@@ -66,15 +66,16 @@ npm start
 ## 📝 注意事項
 
 - 所有資料儲存在瀏覽器本地，不會同步到其他裝置
-- 檔案大小受瀏覽器記憶體限制（localStorage 約 5MB）
-- 需要現代瀏覽器支援攝影機存取功能
+- 照片使用 IndexedDB 儲存，支援大型檔案（無 5MB 限制）
+- 設定資料使用 localStorage 儲存，確保快速存取
+- 需要現代瀏覽器支援攝影機存取功能和 IndexedDB
 - 建議在 HTTPS 環境下使用以確保攝影機功能正常
 
 ## 🔮 未來改進
 
-- [✅] 支援每個 SN 多張照片
-- [ ] 新增照片編輯/刪除[✅]功能
-- [ ] 使用 IndexedDB 替代 localStorage 以支援大型檔案
+- ✅ 支援每個 SN 多張照片
+- ✅ 新增照片編輯/刪除功能
+- ✅ 使用 IndexedDB 替代 localStorage 以支援大型檔案
 - [ ] 新增 PWA 支援（離線存取、可安裝）
 - [ ] 新增雲端同步選項
 

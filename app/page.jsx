@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import JSZip from 'jszip';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import ThemeToggle from './components/ThemeToggle';
+import { getPhotoThumbnails, getFullSizePhotos, addPhoto, deletePhoto, clearAllPhotos } from './utils/photoStorage';
 
 const STORAGE_KEY = 'sn_photos';
 const TAB_STORAGE_KEY = 'active_tab'; // Key for storing active tab preference
@@ -69,7 +70,7 @@ const ScannerSection = ({ sn, setSn, scannerActive, setScannerActive, onScanSucc
         <button
           onClick={scannerActive ? stopScanner : startScanner}
           className={`scan-btn ${scannerActive ? 'active' : ''}`}
-          disabled={scannerActive}
+          // disabled={scannerActive} // allow user stop scanning
         >
           {scannerActive ? '🔄 掃描中...' : '📷 開始掃描'}
         </button>
@@ -170,15 +171,17 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
   const [photos, setPhotos] = useState([]);
 
   useEffect(() => {
-    // 載入已儲存的照片
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    // 載入已儲存的照片縮圖 (記憶體優化)
+    const loadPhotos = async () => {
       try {
-        setPhotos(JSON.parse(saved));
+        const photoThumbnails = await getPhotoThumbnails();
+        setPhotos(photoThumbnails);
       } catch (error) {
         console.error('載入儲存資料時發生錯誤:', error);
       }
-    }
+    };
+    
+    loadPhotos();
   }, []);
 
   const handleCapture = (e) => {
@@ -193,21 +196,30 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      const newPhoto = { 
-        sn: sn.trim(), 
-        dataUrl: reader.result,
-        timestamp: new Date().toISOString()
-      };
-      const updated = [...photos, newPhoto];
-      setPhotos(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      
-      // 清空 SN 輸入框，準備下一次掃描
-      setSn('');
-      
-      // 重置檔案輸入
-      e.target.value = '';
+    reader.onload = async () => {
+      try {
+        const newPhoto = {
+          sn: sn.trim(),
+          dataUrl: reader.result,
+          timestamp: new Date().toISOString()
+        };
+        
+        // 使用 IndexedDB 儲存照片 (包含縮圖生成)
+        const photoId = await addPhoto(newPhoto);
+        
+        // 重新載入縮圖以更新顯示 (記憶體優化)
+        const photoThumbnails = await getPhotoThumbnails();
+        setPhotos(photoThumbnails);
+        
+        // 清空 SN 輸入框，準備下一次掃描
+        setSn('');
+        
+        // 重置檔案輸入
+        e.target.value = '';
+      } catch (error) {
+        console.error('儲存照片時發生錯誤:', error);
+        alert('儲存照片失敗，請稍後再試');
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -219,9 +231,17 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
     }
 
     try {
+      // 取得完整尺寸照片用於 ZIP 下載
+      const fullSizePhotos = await getFullSizePhotos();
+      
+      if (fullSizePhotos.length === 0) {
+        alert("沒有照片可以下載");
+        return;
+      }
+
       const zip = new JSZip();
       
-      photos.forEach(({ sn, dataUrl }, index) => {
+      fullSizePhotos.forEach(({ sn, dataUrl }, index) => {
         const base64 = dataUrl.split(',')[1];
         const extension = dataUrl.includes('image/png') ? 'png' : 'jpg';
         // zip.file(`${sn}.${extension}`, base64, { base64: true });
@@ -236,26 +256,41 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
+      
+      console.log(`📦 ZIP 下載完成: ${fullSizePhotos.length} 張完整尺寸照片`);
     } catch (error) {
       console.error('建立 ZIP 檔案時發生錯誤:', error);
       alert('下載失敗，請稍後再試');
     }
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     if (photos.length === 0) return;
     
     if (confirm('確定要清除所有照片嗎？此操作無法復原。')) {
-      setPhotos([]);
-      localStorage.removeItem(STORAGE_KEY);
+      try {
+        await clearAllPhotos();
+        setPhotos([]);
+      } catch (error) {
+        console.error('清除照片時發生錯誤:', error);
+        alert('清除照片失敗，請稍後再試');
+      }
     }
   };
 
-  const deletePhoto = (index) => {
+  const deletePhotoById = async (index) => {
     if (confirm('確定要刪除這張照片嗎？')) {
-      const updated = photos.filter((_, i) => i !== index);
-      setPhotos(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      try {
+        const photoToDelete = photos[index];
+        await deletePhoto(photoToDelete.id);
+        
+        // 重新載入縮圖以更新顯示 (記憶體優化)
+        const photoThumbnails = await getPhotoThumbnails();
+        setPhotos(photoThumbnails);
+      } catch (error) {
+        console.error('刪除照片時發生錯誤:', error);
+        alert('刪除照片失敗，請稍後再試');
+      }
     }
   };
 
@@ -289,8 +324,8 @@ const BatchDownloadMode = ({ sn, setSn, scannerActive, setScannerActive, onScanS
               <img src={photo.dataUrl} alt={photo.sn} />
               <div className="photo-info">
                 <div className="sn-label">{photo.sn}</div>
-                <button 
-                  onClick={() => deletePhoto(index)}
+                <button
+                  onClick={() => deletePhotoById(index)}
                   className="delete-btn"
                 >
                   🗑️
