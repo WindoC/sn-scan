@@ -70,7 +70,7 @@ const ScannerSection = ({ sn, setSn, scannerActive, setScannerActive, onScanSucc
         <button
           onClick={scannerActive ? stopScanner : startScanner}
           className={`scan-btn ${scannerActive ? 'active' : ''}`}
-          disabled={scannerActive}
+          // disabled={scannerActive} // allow user stop scanning
         >
           {scannerActive ? '🔄 掃描中...' : '📷 開始掃描'}
         </button>
